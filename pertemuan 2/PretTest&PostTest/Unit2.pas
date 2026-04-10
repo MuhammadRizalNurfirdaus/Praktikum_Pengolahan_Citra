@@ -1,0 +1,91 @@
+unit Unit2;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.Menus, Vcl.ExtCtrls, Vcl.StdCtrls,
+  Vcl.Buttons, Vcl.ExtDlgs, Vcl.Imaging.jpeg, Vcl.Imaging.pngimage;
+
+type
+  TForm2 = class(TForm)
+    MainMenu1: TMainMenu;
+    FILE1: TMenuItem;
+    MUATCITRA1: TMenuItem;
+    EXIT1: TMenuItem;
+    OPERASI1: TMenuItem;
+    OpenPictureDialog1: TOpenPictureDialog;
+    PanelLeft: TPanel;
+    Image1: TImage;
+    SpeedButtonMuat: TSpeedButton;
+    procedure FormCreate(Sender: TObject);
+    procedure MUATCITRA1Click(Sender: TObject);
+    procedure EXIT1Click(Sender: TObject);
+    procedure SpeedButtonMuatClick(Sender: TObject);
+  private
+    { Private declarations }
+    procedure LoadDefaultImage;
+    procedure LoadImageFromDialog;
+  public
+    { Public declarations }
+  end;
+
+var
+  Form2: TForm2;
+
+implementation
+
+{$R *.dfm}
+
+procedure TForm2.FormCreate(Sender: TObject);
+begin
+  OpenPictureDialog1.Filter :=
+    'Image Files|*.bmp;*.jpg;*.jpeg;*.png;*.gif|Bitmap|*.bmp|JPEG|*.jpg;*.jpeg|PNG|*.png|All Files|*.*';
+  OpenPictureDialog1.InitialDir := 'D:\Gambar\Saved Pictures';
+  LoadDefaultImage;
+end;
+
+procedure TForm2.LoadDefaultImage;
+const
+  DefaultImagePath = 'D:\Gambar\Saved Pictures\bayi.jpg';
+begin
+  if FileExists(DefaultImagePath) then
+  begin
+    try
+      Image1.Picture.LoadFromFile(DefaultImagePath);
+    except
+      on E: EInvalidGraphic do
+        ShowMessage('Gagal memuat gambar default: ' + E.Message);
+    end;
+  end;
+end;
+
+procedure TForm2.LoadImageFromDialog;
+begin
+  if OpenPictureDialog1.Execute then
+  begin
+    try
+      Image1.Picture.LoadFromFile(OpenPictureDialog1.FileName);
+    except
+      on E: EInvalidGraphic do
+        ShowMessage('Format gambar tidak didukung: ' + E.Message);
+    end;
+  end;
+end;
+
+procedure TForm2.MUATCITRA1Click(Sender: TObject);
+begin
+  LoadImageFromDialog;
+end;
+
+procedure TForm2.EXIT1Click(Sender: TObject);
+begin
+  Close;
+end;
+
+procedure TForm2.SpeedButtonMuatClick(Sender: TObject);
+begin
+  LoadImageFromDialog;
+end;
+
+end.
