@@ -1,0 +1,340 @@
+unit Unit2;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, 
+  Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, 
+  Vcl.ComCtrls, Vcl.Buttons, Vcl.Imaging.jpeg, Vcl.Imaging.pngimage;
+
+type
+  TForm2 = class(TForm)
+    pnlMain: TPanel;
+    pnlTop: TPanel;
+    btnMuatCitra: TButton;
+    lblTitle: TLabel;
+    pnlControl: TPanel;
+    lblFactor1: TLabel;
+    lblFactor2: TLabel;
+    lblFactor3: TLabel;
+    lblFactor4: TLabel;
+    edtFactor: TEdit;
+    btnFactor1: TButton;
+    btnFactor2: TButton;
+    btnFactor3: TButton;
+    btnFactor4: TButton;
+    btnProses: TButton;
+    OpenDialog: TOpenDialog;
+    pnlImages: TPanel;
+    imgAsli: TImage;
+    imgHasil: TImage;
+    lblAsli: TLabel;
+    lblHasil: TLabel;
+    pnlAnalisis: TPanel;
+    lblAnalisisTitle: TLabel;
+    memoAnalisis: TMemo;
+    ScrollBox1: TScrollBox;
+    ScrollBox2: TScrollBox;
+    procedure FormCreate(Sender: TObject);
+    procedure btnMuatCitraClick(Sender: TObject);
+    procedure btnProsesClick(Sender: TObject);
+    procedure btnFactor1Click(Sender: TObject);
+    procedure btnFactor2Click(Sender: TObject);
+    procedure btnFactor3Click(Sender: TObject);
+    procedure btnFactor4Click(Sender: TObject);
+  private
+    FOriginalBitmap: TBitmap;
+    FProcessedBitmap: TBitmap;
+    FImageLoaded: Boolean;
+    procedure IncreaseContrast(Source, Dest: TBitmap; Factor: Double);
+    procedure LoadImage(const FileName: string);
+    procedure ProcessWithFactor(Factor: Double);
+    procedure UpdateAnalisis(Factor: Double);
+  public
+    { Public declarations }
+  end;
+
+var
+  Form2: TForm2;
+
+implementation
+
+{$R *.dfm}
+
+procedure TForm2.FormCreate(Sender: TObject);
+begin
+  FOriginalBitmap := TBitmap.Create;
+  FProcessedBitmap := TBitmap.Create;
+  FImageLoaded := False;
+  
+  edtFactor.Text := '1.50';
+  
+  OpenDialog.Filter := 'Semua Gambar|*.bmp;*.jpg;*.jpeg;*.png;*.gif|' +
+                       'Gambar BMP (*.bmp)|*.bmp|' +
+                       'Gambar JPG (*.jpg;*.jpeg)|*.jpg;*.jpeg|' +
+                       'Gambar PNG (*.png)|*.png|' +
+                       'Gambar GIF (*.gif)|*.gif|' +
+                       'Semua File (*.*)|*.*';
+end;
+
+procedure TForm2.LoadImage(const FileName: string);
+var
+  TempBitmap: TBitmap;
+  FileExt: string;
+begin
+  try
+    FileExt := LowerCase(ExtractFileExt(FileName));
+    TempBitmap := TBitmap.Create;
+    try
+      // Load file sesuai dengan format
+      if FileExt = '.png' then
+      begin
+        var PNGImage := TPngImage.Create;
+        try
+          PNGImage.LoadFromFile(FileName);
+          TempBitmap.Assign(PNGImage);
+        finally
+          PNGImage.Free;
+        end;
+      end
+      else if (FileExt = '.jpg') or (FileExt = '.jpeg') then
+      begin
+        var JPGImage := TJPEGImage.Create;
+        try
+          JPGImage.LoadFromFile(FileName);
+          TempBitmap.Assign(JPGImage);
+        finally
+          JPGImage.Free;
+        end;
+      end
+      else
+      begin
+        // Untuk BMP, GIF, dan format lainnya
+        TempBitmap.LoadFromFile(FileName);
+      end;
+      
+      // Pastikan bitmap dalam format 24-bit untuk pemrosesan
+      if TempBitmap.PixelFormat <> pf24bit then
+        TempBitmap.PixelFormat := pf24bit;
+      
+      // Copy ke FOriginalBitmap
+      FOriginalBitmap.Assign(TempBitmap);
+      FOriginalBitmap.PixelFormat := pf24bit;
+      
+      // Tampilkan di Image
+      imgAsli.Picture.Graphic := FOriginalBitmap;
+      imgAsli.Refresh;
+      
+      FImageLoaded := True;
+      lblTitle.Caption := 'Peningkatan Kontras Citra - ' + ExtractFileName(FileName);
+      
+      memoAnalisis.Lines.Clear;
+      memoAnalisis.Lines.Add('File dimuat: ' + ExtractFileName(FileName));
+      memoAnalisis.Lines.Add('Format: ' + FileExt);
+      memoAnalisis.Lines.Add('Ukuran: ' + IntToStr(FOriginalBitmap.Width) + ' x ' + 
+                              IntToStr(FOriginalBitmap.Height) + ' piksel');
+      memoAnalisis.Lines.Add('');
+      memoAnalisis.Lines.Add('Silakan pilih faktor kontras dan klik "Proses"');
+      
+    finally
+      TempBitmap.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      FImageLoaded := False;
+      ShowMessage('Gagal membuka file gambar!' + #13#10 + 'Error: ' + E.Message);
+      memoAnalisis.Lines.Clear;
+      memoAnalisis.Lines.Add('Error membuka file: ' + E.Message);
+    end;
+  end;
+end;
+
+procedure TForm2.btnMuatCitraClick(Sender: TObject);
+begin
+  if OpenDialog.Execute then
+  begin
+    LoadImage(OpenDialog.FileName);
+  end;
+end;
+
+procedure TForm2.IncreaseContrast(Source, Dest: TBitmap; Factor: Double);
+var
+  X, Y: Integer;
+  pSource: PByte;
+  ScanLineSource: PByte;
+  R, G, B: Byte;
+  NewR, NewG, NewB: Integer;
+  BytesPerPixel: Integer;
+const
+  MidPoint = 128;
+begin
+  // Pastikan format 24-bit
+  Source.PixelFormat := pf24bit;
+  
+  Dest.Width := Source.Width;
+  Dest.Height := Source.Height;
+  Dest.PixelFormat := pf24bit;
+  
+  BytesPerPixel := 3; // RGB = 3 bytes
+  
+  // Proses per scanline untuk lebih efisien
+  for Y := 0 to Source.Height - 1 do
+  begin
+    ScanLineSource := Source.ScanLine[Y];
+    
+    for X := 0 to Source.Width - 1 do
+    begin
+      pSource := PByte(NativeUInt(ScanLineSource) + (X * BytesPerPixel));
+      
+      // Format BGR di memory (bukan RGB)
+      B := pSource^;
+      G := (PByte(NativeUInt(pSource) + 1))^;
+      R := (PByte(NativeUInt(pSource) + 2))^;
+      
+      // Hitung kontras dengan perkalian
+      NewR := Round((R - MidPoint) * Factor + MidPoint);
+      NewG := Round((G - MidPoint) * Factor + MidPoint);
+      NewB := Round((B - MidPoint) * Factor + MidPoint);
+      
+      // Clipping
+      if NewR > 255 then NewR := 255 else if NewR < 0 then NewR := 0;
+      if NewG > 255 then NewG := 255 else if NewG < 0 then NewG := 0;
+      if NewB > 255 then NewB := 255 else if NewB < 0 then NewB := 0;
+      
+      // Set pixel di destination
+      var pDest := Dest.ScanLine[Y];
+      pDest := PByte(NativeUInt(pDest) + (X * BytesPerPixel));
+      pDest^ := NewB;
+      (PByte(NativeUInt(pDest) + 1))^ := NewG;
+      (PByte(NativeUInt(pDest) + 2))^ := NewR;
+    end;
+  end;
+end;
+
+procedure TForm2.ProcessWithFactor(Factor: Double);
+begin
+  if not FImageLoaded then
+  begin
+    ShowMessage('Silakan muat gambar terlebih dahulu!');
+    Exit;
+  end;
+  
+  if (FOriginalBitmap.Width = 0) or (FOriginalBitmap.Height = 0) then
+  begin
+    ShowMessage('Gambar tidak valid!');
+    Exit;
+  end;
+  
+  try
+    if Factor <= 0 then
+    begin
+      ShowMessage('Nilai faktor harus lebih dari 0!');
+      Exit;
+    end;
+    
+    edtFactor.Text := Format('%.2f', [Factor]);
+    
+    IncreaseContrast(FOriginalBitmap, FProcessedBitmap, Factor);
+    imgHasil.Picture.Graphic := FProcessedBitmap;
+    imgHasil.Refresh;
+    
+    UpdateAnalisis(Factor);
+  except
+    on E: Exception do
+      ShowMessage('Error saat pemrosesan: ' + E.Message);
+  end;
+end;
+
+procedure TForm2.UpdateAnalisis(Factor: Double);
+var
+  AnalisisText: string;
+begin
+  AnalisisText := Format('Analisis: Faktor %.2f', [Factor]) + #13#10;
+  
+  if Factor < 1.0 then
+    AnalisisText := AnalisisText + 'Kontras berkurang, citra lebih flat.'
+  else if Factor = 1.0 then
+    AnalisisText := AnalisisText + 'Tidak ada perubahan kontras.'
+  else if Factor < 1.5 then
+    AnalisisText := AnalisisText + 'Kontras sedikit meningkat, detail mulai terlihat lebih jelas.'
+  else if Factor < 2.0 then
+    AnalisisText := AnalisisText + 'Kontras sedang meningkat, detail terlihat lebih terang/gelap.'
+  else
+    AnalisisText := AnalisisText + 'Kontras tinggi meningkat, detail sangat dramatis.' + #13#10 +
+                    'Area gelap lebih gelap, area terang lebih terang.';
+  
+  memoAnalisis.Lines.Clear;
+  memoAnalisis.Lines.Add(AnalisisText);
+end;
+
+procedure TForm2.btnProsesClick(Sender: TObject);
+var
+  Factor: Double;
+begin
+  try
+    Factor := StrToFloat(edtFactor.Text);
+    ProcessWithFactor(Factor);
+  except
+    ShowMessage('Input faktor tidak valid! Gunakan format: 1.50');
+  end;
+end;
+
+procedure TForm2.btnFactor1Click(Sender: TObject);
+begin
+  ProcessWithFactor(1.20);
+end;
+
+procedure TForm2.btnFactor2Click(Sender: TObject);
+begin
+  ProcessWithFactor(1.50);
+end;
+
+procedure TForm2.btnFactor3Click(Sender: TObject);
+begin
+  ProcessWithFactor(1.80);
+end;
+
+procedure TForm2.btnFactor4Click(Sender: TObject);
+begin
+  ProcessWithFactor(2.20);
+end;
+
+end.
+  memoAnalisis.Lines.Clear;
+  memoAnalisis.Lines.Add(AnalisisText);
+end;
+
+procedure TForm2.btnProsesClick(Sender: TObject);
+var
+  Factor: Double;
+begin
+  try
+    Factor := StrToFloat(edtFactor.Text);
+    ProcessWithFactor(Factor);
+  except
+    ShowMessage('Input faktor tidak valid! Gunakan format desimal (contoh: 1.50)');
+  end;
+end;
+
+procedure TForm2.btnFactor1Click(Sender: TObject);
+begin
+  ProcessWithFactor(1.20);
+end;
+
+procedure TForm2.btnFactor2Click(Sender: TObject);
+begin
+  ProcessWithFactor(1.50);
+end;
+
+procedure TForm2.btnFactor3Click(Sender: TObject);
+begin
+  ProcessWithFactor(1.80);
+end;
+
+procedure TForm2.btnFactor4Click(Sender: TObject);
+begin
+  ProcessWithFactor(2.20);
+end;
+
+end.
